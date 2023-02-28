@@ -14,7 +14,7 @@ using System.Reflection;
 using VRC.SDK3.Avatars.Components;
 using VRC.SDK3.Avatars.ScriptableObjects;
 #endif
-
+//
 [InitializeOnLoad]
 public static class BetterAnimator
 {
@@ -67,9 +67,10 @@ public class Patch_ParameterControllerView_OnAddParameter
     }
 }
 
-[HarmonyPatch(typeof(GenericMenu), "DropDown")]
+[HarmonyPatch(typeof(GenericMenu), "DropDown", new Type[] { typeof(Rect), typeof(bool) })]
 public class Patch_GenericMenu_OnAddParameter
 {
+    public static bool TypeColoring;
     public static void Prefix(GenericMenu __instance)
     {
         //Debug.Log(new System.Diagnostics.StackTrace());
@@ -105,6 +106,7 @@ public class Patch_GenericMenu_OnAddParameter
                 }
                 );
             }
+            __instance.AddItem(new GUIContent("Type Color"), TypeColoring, () => { TypeColoring = !TypeColoring; });
             return;
         }
     }
@@ -191,6 +193,7 @@ public class Patch_GenericMenu_ShowAsContext
             __instance.AddItem(new GUIContent("Select Out Transitions"), false, () => { SelectEdges(curNode, 0); });
             __instance.AddItem(new GUIContent("Select In Transitions"), false, () => { SelectEdges(curNode, 1); });
             __instance.AddItem(new GUIContent("Select Both Transitions"), false, () => { SelectEdges(curNode, 2); });
+            __instance.AddItem(new GUIContent("Pack into State Machine"), false, () => { PackIntoStateMachine(curNode); });
             return;
         }
 
@@ -247,10 +250,36 @@ public class Patch_GenericMenu_ShowAsContext
         targetGraphGUI.edgeGUI.edgeSelection.Clear();
         foreach (Node node in targetGraphGUI.graph.nodes)
         {
-            if ((node.outputEdges.Count() + node.inputEdges.Count() == 0) && node.name != "Any State" && node.name != "Entry" && node.name != "Exit")
+            if ((node.outputEdges.Count() + node.inputEdges.Count() == 0) && node.GetType().Name == "StateNode")
                 targetGraphGUI.selection.Add(node);
         }
         if (GraphGUI_UpdateUnitySelection_getter == null) GraphGUI_UpdateUnitySelection_getter = (targetGraphGUI as object).GetType().GetMethod("UpdateUnitySelection", allInfo);
         GraphGUI_UpdateUnitySelection_getter.Invoke((object)targetGraphGUI, null);
     }
+    static MethodInfo ASMGraphGUI_AddStateMachineCallback_getter;
+    public static bool NeedingStateMachine;
+    static void PackIntoStateMachine(Node targetNode)
+    {
+        Type baseType = targetNode.GetType();
+
+        if (ASMNode_graphGUI_getter == null) ASMNode_graphGUI_getter = baseType.GetField("graphGUI", allInfo);
+        GraphGUI graphGUI = (GraphGUI)ASMNode_graphGUI_getter.GetValue(targetNode);
+
+        if (ASMGraphGUI_AddStateMachineCallback_getter == null) ASMGraphGUI_AddStateMachineCallback_getter = graphGUI.GetType().GetMethod("AddStateMachineCallback", allInfo);
+
+        NeedingStateMachine = true;
+        ASMGraphGUI_AddStateMachineCallback_getter.Invoke((object)graphGUI, new object[] { new Vector2(0, 0) });
+        NeedingStateMachine = false;
+    }
 }
+
+
+
+/*[HarmonyPatch("Unity.UI.Builder.FoldoutWithCheckbox", "RegisterCheckboxValueChangedCallback")]
+public class Patch_tester
+{
+    static void Prefix()
+    {
+        Debug.Log(new System.Diagnostics.StackTrace());
+    }
+}*/
