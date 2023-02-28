@@ -10,8 +10,10 @@ using System.Collections.Generic;
 using HarmonyLib;
 using System.Reflection;
 
+#if VRC_SDK_VRCSDK3
 using VRC.SDK3.Avatars.Components;
 using VRC.SDK3.Avatars.ScriptableObjects;
+#endif
 
 [InitializeOnLoad]
 public static class BetterAnimator
@@ -81,8 +83,9 @@ public class Patch_GenericMenu_OnAddParameter
             RuntimeAnimatorController curController = GetParameterControllerViewRuntimeAnimator(curParameterControllerView);
             if (curController != null)
             {
+#if VRC_SDK_VRCSDK3
                 __instance.AddItem(new GUIContent("Add From VRC"), false, () => { AddFromVRC(curParameterControllerView, curController); });
-
+#endif
                 __instance.AddItem(new GUIContent("Sort (A-Z)"), false, () => { SortParams(curController, (p1, p2) => { return string.Compare(p1.name, p2.name); }); });
                 __instance.AddItem(new GUIContent("Sort (Z-A)"), false, () => { SortParams(curController, (p1, p2) => { return -1 * string.Compare(p1.name, p2.name); }); });
                 __instance.AddItem(new GUIContent("Sort (Type)"), false, () => 
@@ -110,6 +113,7 @@ public class Patch_GenericMenu_OnAddParameter
 
     static MethodInfo AnimatorController_AddParameter_getter;
     static PropertyInfo AnimatorController_parameters_getter;
+#if VRC_SDK_VRCSDK3
     public static void AddFromVRC(object curParameterControllerView, RuntimeAnimatorController curController)
     {
         VRCAvatarDescriptor[] avatars = UnityEngine.Object.FindObjectsOfType<VRCAvatarDescriptor>();
@@ -145,6 +149,7 @@ public class Patch_GenericMenu_OnAddParameter
             }
         }
     }
+#endif
 
     static FieldInfo ParameterControllerView_m_Host_getter;
     static PropertyInfo IAnimatorControllerEditor_animatorController_getter;
