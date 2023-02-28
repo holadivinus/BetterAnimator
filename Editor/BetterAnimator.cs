@@ -83,8 +83,24 @@ public class Patch_GenericMenu_OnAddParameter
             {
                 __instance.AddItem(new GUIContent("Add From VRC"), false, () => { AddFromVRC(curParameterControllerView, curController); });
 
-                __instance.AddItem(new GUIContent("Sort (A-Z)"), false, () => { SortParams(curController); });
-
+                __instance.AddItem(new GUIContent("Sort (A-Z)"), false, () => { SortParams(curController, (p1, p2) => { return string.Compare(p1.name, p2.name); }); });
+                __instance.AddItem(new GUIContent("Sort (Z-A)"), false, () => { SortParams(curController, (p1, p2) => { return -1 * string.Compare(p1.name, p2.name); }); });
+                __instance.AddItem(new GUIContent("Sort (Type)"), false, () => 
+                { 
+                    SortParams
+                    (
+                        curController, 
+                        (p1, p2) => 
+                        {
+                            return string.Compare
+                            (
+                                Enum.GetName(typeof(AnimatorControllerParameterType), p1.type) + p1.name,
+                                Enum.GetName(typeof(AnimatorControllerParameterType), p2.type) + p1.name
+                            ); 
+                        }
+                    ); 
+                }
+                );
             }
             return;
         }
@@ -143,13 +159,14 @@ public class Patch_GenericMenu_OnAddParameter
         return animer;
     }
 
-    public static void SortParams(RuntimeAnimatorController curController)
+    public static void SortParams(RuntimeAnimatorController curController, Comparison<AnimatorControllerParameter> sortAction)
     {
         if (AnimatorController_parameters_getter == null) AnimatorController_parameters_getter = curController.GetType().GetProperty("parameters", allInfo);
         List<AnimatorControllerParameter> paramList = ((AnimatorControllerParameter[])AnimatorController_parameters_getter.GetValue((object)curController)).ToList();
 
-        paramList.Sort((p1, p2) => { });
+        paramList.Sort(sortAction);
 
+        AnimatorController_parameters_getter.SetValue((object)curController, paramList.ToArray());
     }
 }
 
