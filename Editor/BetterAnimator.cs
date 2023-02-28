@@ -83,12 +83,14 @@ public class Patch_GenericMenu_OnAddParameter
             {
                 __instance.AddItem(new GUIContent("Add From VRC"), false, () => { AddFromVRC(curParameterControllerView, curController); });
 
+                __instance.AddItem(new GUIContent("Sort (A-Z)"), false, () => { SortParams(curController); });
 
-                
             }
             return;
         }
     }
+
+    static BindingFlags allInfo = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic;
 
     static MethodInfo AnimatorController_AddParameter_getter;
     static PropertyInfo AnimatorController_parameters_getter;
@@ -128,7 +130,6 @@ public class Patch_GenericMenu_OnAddParameter
         }
     }
 
-    static BindingFlags allInfo = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic;
     static FieldInfo ParameterControllerView_m_Host_getter;
     static PropertyInfo IAnimatorControllerEditor_animatorController_getter;
     public static RuntimeAnimatorController GetParameterControllerViewRuntimeAnimator(object ParameterControllerView)
@@ -140,6 +141,15 @@ public class Patch_GenericMenu_OnAddParameter
         if (IAnimatorControllerEditor_animatorController_getter == null) IAnimatorControllerEditor_animatorController_getter = m_Host.GetType().GetProperty("animatorController", allInfo);
         RuntimeAnimatorController animer = IAnimatorControllerEditor_animatorController_getter.GetValue(m_Host) as RuntimeAnimatorController;
         return animer;
+    }
+
+    public static void SortParams(RuntimeAnimatorController curController)
+    {
+        if (AnimatorController_parameters_getter == null) AnimatorController_parameters_getter = curController.GetType().GetProperty("parameters", allInfo);
+        List<AnimatorControllerParameter> paramList = ((AnimatorControllerParameter[])AnimatorController_parameters_getter.GetValue((object)curController)).ToList();
+
+        paramList.Sort((p1, p2) => { });
+
     }
 }
 
