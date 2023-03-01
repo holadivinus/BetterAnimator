@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using UnityEditor;
 using UnityEditor.Graphs;
+using UnityEditor.Animations;
 
 using System;
 using System.Linq;
@@ -67,7 +68,7 @@ public class Patch_ParameterControllerView_OnAddParameter
     }
 }
 
-[HarmonyPatch(typeof(GenericMenu), "DropDown", new Type[] { typeof(Rect), typeof(bool) })]
+[HarmonyPatch(typeof(GenericMenu), "DropDown")]//, new Type[] { typeof(Rect), typeof(bool) })]
 public class Patch_GenericMenu_OnAddParameter
 {
     public static bool TypeColoring;
@@ -106,7 +107,7 @@ public class Patch_GenericMenu_OnAddParameter
                 }
                 );
             }
-            __instance.AddItem(new GUIContent("Type Color"), TypeColoring, () => { TypeColoring = !TypeColoring; });
+            //__instance.AddItem(new GUIContent("Type Color"), TypeColoring, () => { TypeColoring = !TypeColoring; });
             return;
         }
     }
@@ -257,7 +258,7 @@ public class Patch_GenericMenu_ShowAsContext
         GraphGUI_UpdateUnitySelection_getter.Invoke((object)targetGraphGUI, null);
     }
     static MethodInfo ASMGraphGUI_AddStateMachineCallback_getter;
-    public static bool NeedingStateMachine;
+    public static GraphGUI PackGraphUI;
     static void PackIntoStateMachine(Node targetNode)
     {
         Type baseType = targetNode.GetType();
@@ -267,13 +268,87 @@ public class Patch_GenericMenu_ShowAsContext
 
         if (ASMGraphGUI_AddStateMachineCallback_getter == null) ASMGraphGUI_AddStateMachineCallback_getter = graphGUI.GetType().GetMethod("AddStateMachineCallback", allInfo);
 
-        NeedingStateMachine = true;
-        ASMGraphGUI_AddStateMachineCallback_getter.Invoke((object)graphGUI, new object[] { new Vector2(0, 0) });
-        NeedingStateMachine = false;
+        PackGraphUI = graphGUI;
+        ASMGraphGUI_AddStateMachineCallback_getter.Invoke((object)graphGUI, new object[] { targetNode.position.center });
+        PackGraphUI = null;
     }
 }
 
+[HarmonyPatch(typeof(AnimatorStateMachine), "AddStateMachine", new Type[] { typeof(string), typeof(Vector3) })]
+class Patch_AnimatorStateMachine_AddStateMachine
+{
+    static BindingFlags allInfo = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic;
+    static MethodInfo AnimatorStateMachine_MoveState_getter;
+    static MethodInfo AnimatorStateMachine_MoveStateMachine_getter;
+    static FieldInfo StateNode_state_getter;
+    static FieldInfo StateMachineNode_stateMachine_getter;
+    static MethodInfo AnimatorState_SetStatePosition_getter;
+    static MethodInfo AnimatorState_SetStateMachinePosition_getter;
+    public static void Postfix(AnimatorStateMachine __result, AnimatorStateMachine __instance)
+    {
+        GraphGUI graphGUI = Patch_GenericMenu_ShowAsContext.PackGraphUI;
+        if (graphGUI == null) return;
 
+        if (AnimatorStateMachine_MoveState_getter == null) AnimatorStateMachine_MoveState_getter = __instance.GetType().GetMethod("MoveState", allInfo);
+        if (AnimatorStateMachine_MoveStateMachine_getter == null) AnimatorStateMachine_MoveStateMachine_getter = __instance.GetType().GetMethod("MoveStateMachine", allInfo);
+        if (AnimatorState_SetStatePosition_getter == null) AnimatorState_SetStatePosition_getter = typeof(AnimatorStateMachine).GetMethod("SetStatePosition", allInfo);
+        if (AnimatorState_SetStateMachinePosition_getter == null) AnimatorState_SetStateMachinePosition_getter = typeof(AnimatorStateMachine).GetMethod("SetStateMachinePosition", allInfo);
+
+        Vector2 smallestPos = new Vector2(1000, 1000);
+        foreach (Node state in graphGUI.selection)
+        {
+            smallestPos = state.position.position.magnitude < smallestPos.magnitude ? state.position.position : smallestPos;
+        }
+
+        foreach (Node selected in graphGUI.selection)
+        {
+            if (selected.GetType().Name == "StateNode")
+            {
+                if (StateNode_state_getter == null) StateNode_state_getter = selected.GetType().GetField("state", allInfo);
+                AnimatorState selState = (AnimatorState)StateNode_state_getter.GetValue(selected);
+
+                Vector2 prePos = selected.position.center - smallestPos - new Vector2(-300, -200);
+                AnimatorStateMachine_MoveState_getter.Invoke(__instance, new object[] { selState, __result });
+
+                for (int i = 0; i < __result.states.Length; i++)
+                {
+                    ChildAnimatorState newState = __result.states[i];
+                    if (newState.state.name == selState.name)
+                    {
+                        AnimatorState_SetStatePosition_getter.Invoke(__result, new object[] { newState.state, new Vector3(prePos.x, prePos.y) });
+                    }
+                }
+            }
+            else if (selected.GetType().Name == "StateMachineNode")
+            {
+                if (StateMachineNode_stateMachine_getter == null) StateMachineNode_stateMachine_getter = selected.GetType().GetField("stateMachine", allInfo);
+                AnimatorStateMachine selStateMachine = (AnimatorStateMachine)StateMachineNode_stateMachine_getter.GetValue(selected);
+
+                Vector2 prePos = selected.position.center - smallestPos - new Vector2(-300, -200);
+                AnimatorStateMachine_MoveStateMachine_getter.Invoke(__instance, new object[] { selStateMachine, __result });
+
+                for (int i = 0; i < __result.stateMachines.Length; i++)
+                {
+                    ChildAnimatorStateMachine newStateMachine = __result.stateMachines[i];
+                    if (newStateMachine.stateMachine.name == selStateMachine.name)
+                    {
+                        AnimatorState_SetStateMachinePosition_getter.Invoke(__result, new object[] { newStateMachine.stateMachine, new Vector3(prePos.x, prePos.y) });
+                    }
+                }
+            }
+        }
+    }
+}
+
+[HarmonyPatch(typeof(AnimatorStateMachine), "AddState", new Type[] { typeof(AnimatorState), typeof(Vector3) })]
+class Patch_AnimatorState_MoveState
+{
+    public static void Prefix()
+    {
+        Debug.Log(new System.Diagnostics.StackTrace());
+    }
+
+}
 
 /*[HarmonyPatch("Unity.UI.Builder.FoldoutWithCheckbox", "RegisterCheckboxValueChangedCallback")]
 public class Patch_tester
